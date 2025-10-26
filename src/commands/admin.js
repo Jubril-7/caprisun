@@ -32,10 +32,37 @@ export default async function adminCommands(sock, msg, command, args, storage, s
         if (command === 'admin') {
             try {
                 const groupMeta = await sock.groupMetadata(chatId);
-                const admins = groupMeta.participants.filter(p => p.admin).map(p => p.id);
-                const adminList = await Promise.all(admins.map(id => formatJID(id)));
+                const admins = groupMeta.participants.filter(p => p.admin);
+
+                if (admins.length === 0) {
+                    await sock.sendMessage(chatId, { text: 'No admins found in this group.' });
+                    return true;
+                }
+
+                const adminList = admins.map(a => a.id);
+                const mentions = adminList;
+
+                const names = await Promise.all(adminList.map(async (id) => {
+                    try {
+                        const contact = sock.contacts?.[id];
+                        const name =
+                            contact?.name ||
+                            contact?.verifiedName ||
+                            contact?.notify ||
+                            id.split('@')[0];
+                        return name;
+                    } catch {
+                        return id.split('@')[0];
+                    }
+                }));
+                // Just tags, no extra ID text
+                const text = `👑 *Group Admins:*\n\n${names
+                    .map((_, i) => `• @${adminList[i].split('@')[0]}`)
+                    .join('\n')}`;
+
                 await sendReaction(sock, msg, '✅');
-                await sock.sendMessage(chatId, { text: `Admins:\n${adminList.join('\n')}` });
+                await sock.sendMessage(chatId, { text, mentions });
+
                 await logMessage('info', `Admin command executed: Listed admins for ${chatId}`);
                 return true;
             } catch (error) {
@@ -45,6 +72,8 @@ export default async function adminCommands(sock, msg, command, args, storage, s
                 return true;
             }
         }
+
+
 
         if (command === 'groupinfo') {
             try {
@@ -518,14 +547,14 @@ export default async function adminCommands(sock, msg, command, args, storage, s
 
                 if (msg.message.extendedTextMessage?.contextInfo?.quotedMessage) {
                     const quotedMsg = msg.message.extendedTextMessage.contextInfo;
-                    const quotedText = quotedMsg.quotedMessage.conversation || 
-                                     quotedMsg.quotedMessage.extendedTextMessage?.text || 
-                                     '[Media Message]';
+                    const quotedText = quotedMsg.quotedMessage.conversation ||
+                        quotedMsg.quotedMessage.extendedTextMessage?.text ||
+                        '[Media Message]';
                     message = `${quotedText}\n\n${args.join(' ')}`;
 
                     await sendReaction(sock, msg, '✅');
-                    await sock.sendMessage(chatId, { 
-                        text: message, 
+                    await sock.sendMessage(chatId, {
+                        text: message,
                         mentions: members,
                         contextInfo: {
                             mentionedJid: members,
@@ -544,8 +573,8 @@ export default async function adminCommands(sock, msg, command, args, storage, s
                     message = args.join(' ');
 
                     await sendReaction(sock, msg, '✅');
-                    await sock.sendMessage(chatId, { 
-                        text: message, 
+                    await sock.sendMessage(chatId, {
+                        text: message,
                         mentions: members,
                         contextInfo: {
                             mentionedJid: members,
