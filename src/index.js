@@ -40,10 +40,23 @@ const OWNER_COMMANDS = new Set(['ban', 'unban', 'accept', 'reject', 'status', 's
 
 async function connectToWhatsApp() {
     const { default: makeWASocket, DisconnectReason, useMultiFileAuthState } = await import('@whiskeysockets/baileys');
+
+    // 🔇 Create a silent logger using the existing pino import
+    const silentLogger = pino({
+        level: 'silent',
+        base: null,
+        timestamp: false
+    });
+
+    // 🧩 Patch noisy console methods (Baileys v7 still uses these)
+    console.debug = () => {};
+    console.trace = () => {};
+    console.info = () => {}; // optional, to block info-level spam
+
     const { state, saveCreds } = await useMultiFileAuthState('auth_info');
 
     sock = makeWASocket({
-        logger: pino({ level: 'silent' }),
+        logger: silentLogger,
         auth: state
     });
 
