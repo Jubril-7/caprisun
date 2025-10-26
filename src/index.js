@@ -41,7 +41,7 @@ const OWNER_COMMANDS = new Set(['ban', 'unban', 'accept', 'reject', 'status', 's
 async function connectToWhatsApp() {
     const { default: makeWASocket, DisconnectReason, useMultiFileAuthState } = await import('@whiskeysockets/baileys');
     const { state, saveCreds } = await useMultiFileAuthState('auth_info');
-    
+
     sock = makeWASocket({
         logger: pino({ level: 'silent' }),
         auth: state
@@ -149,9 +149,15 @@ async function connectToWhatsApp() {
     sock.ev.on('group-participants.update', async ({ id: chatId, participants, action }) => {
         const storage = await loadStorage();
         if (action === 'add' && storage.groups[chatId]?.welcome === 'on') {
-            const welcomeMsg = storage.groups[chatId]?.welcomeMessage || 'Welcome to the group!';
+            const welcomeMsg = storage.groups[chatId]?.welcomeMessage || 'Welcome to the group! Intro...';
             for (const participant of participants) {
-                await sock.sendMessage(chatId, { text: `${welcomeMsg} @${participant.split('@')[0]}`, mentions: [participant] });
+                // Extract the JID from participant object
+                const participantJid = participant.id || participant;
+                const participantNumber = participantJid.split('@')[0];
+                await sock.sendMessage(chatId, {
+                    text: `${welcomeMsg} @${participantNumber}`,
+                    mentions: [participantJid]
+                });
             }
         }
     });
@@ -174,7 +180,7 @@ async function handleAntilink(sock, msg, chatId, sender, storage) {
     const warnings = storage.warnings[sender] || 0;
     storage.warnings[sender] = warnings + 1;
     await saveStorage(storage);
-    
+
     await sock.sendMessage(chatId, { text: `@${sender.split('@')[0]}, links are not allowed. Warning ${warnings + 1}/3.`, mentions: [sender] });
     await sock.sendMessage(chatId, { delete: msg.key });
 
